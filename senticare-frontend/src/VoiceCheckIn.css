@@ -1,14 +1,4 @@
-/* VoiceCheckIn.css — FIXED VERSION
- *
- * CHANGES FROM ORIGINAL:
- * ────────────────────────────────────────────────────────────────────────────
- * FIX 1 — .vc-fusion-track must NOT be display:flex or have overflow:visible.
- *   The original sadness row had a duplicate nested .vc-fusion-track div
- *   (fixed in JSX). This CSS ensures .vc-fusion-track always clips correctly.
- *
- * No other CSS changes — all existing styles preserved exactly.
- * ────────────────────────────────────────────────────────────────────────────
- */
+ /* VoiceCheckIn.css  */
 
 @keyframes vcFadeUp {
   from { opacity: 0; transform: translateY(10px); }
@@ -154,9 +144,7 @@
   line-height: 1.6;
 }
 
-/* ══════════════════════════════════
-   RESULT PANEL
-══════════════════════════════════ */
+/* RESULT PANEL */
 .vc-result-panel {
   display: flex;
   flex-direction: column;
@@ -230,7 +218,7 @@
   height: 8px;
   background: #e8f5ee;
   border-radius: 4px;
-  overflow: hidden;   /* FIX 1: ensures fill never bleeds outside the track */
+  overflow: hidden;   
 }
 .vc-bar-fill {
   height: 100%;
@@ -258,16 +246,12 @@
   flex-shrink: 0;
 }
 
-/* FIX 1 — .vc-fusion-track as a flex child that expands to fill available space.
-   The original had a duplicate nested .vc-fusion-track inside the sadness row
-   in the JSX, which meant the bar-fill was inside a wrapper with no width.
-   The JSX duplicate is removed; this rule makes the track behave correctly. */
 .vc-fusion-track {
   flex: 1;
   height: 8px;
   background: #e8f5ee;
   border-radius: 4px;
-  overflow: hidden;   /* clips the animated fill */
+  overflow: hidden;   
 }
 
 .vc-fusion-pct {
@@ -295,12 +279,10 @@
 .vc-fill-coral  { background: #D85A30; }
 .vc-fill-blue   { background: #378ADD; }
 .vc-fill-green {
-  background-color: #22c55e; /* or any green you prefer */
+  background-color: #22c55e;
 }
 
-/* ══════════════════════════════════
-   BUTTONS
-══════════════════════════════════ */
+/* BUTTONS */
 .vc-btn-row {
   display: flex;
   gap: 8px;

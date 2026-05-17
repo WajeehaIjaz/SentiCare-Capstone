@@ -1,19 +1,3 @@
-// voiceConstants.js
-// All UI strings for the VoiceCheckIn screen (English and Urdu).
-// Import in VoiceCheckIn.jsx: import { VOICE_UI } from "./voiceConstants";
-//
-// IMPORTANT — how to render emotion labels in the UI:
-//
-//   The backend returns an English key such as "anxious", "excited", etc.
-//   NEVER render this raw key. Always look it up:
-//
-//     const lang = "ur";  // or "en"
-//     const label = result.dominant_emotion;          // e.g. "anxious"
-//     const display = VOICE_UI[lang].emotions[label]  // e.g. "آپ کی آواز میں گھبراہٹ"
-//                  ?? VOICE_UI[lang].emotions.unknown;
-//
-//   This is why the UI was showing "Excited" in English even in Urdu mode —
-//   the component was rendering `label` directly instead of `emotions[label]`.
 
 export const VOICE_UI = {
   en: {
@@ -73,14 +57,7 @@ export const VOICE_UI = {
 
 export const VOICE_INTRO_URL = "http://localhost:5000/voice-intro";
 
-// ── Helper: get translated emotion display string ─────────────────────────
-// Use this everywhere you render an emotion label from the backend.
-//
-// Usage:
-//   import { VOICE_UI, getEmotionDisplay } from "./voiceConstants";
-//   const display = getEmotionDisplay("anxious", "ur");
-//   // → "آپ کی آواز میں گھبراہٹ محسوس ہوئی"
-//
+
 export function getEmotionDisplay(emotionKey, lang = "en") {
   const ui = VOICE_UI[lang] ?? VOICE_UI["en"];
   return ui.emotions[emotionKey] ?? ui.emotions["unknown"];

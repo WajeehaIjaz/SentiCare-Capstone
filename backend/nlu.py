@@ -1,29 +1,6 @@
 # nlu.py
-#
-# Natural Language Understanding module for SentiCare.
-#
-# POSITION IN PIPELINE:
-#   STT → NLU → EmotionAnalyzer
-#
-# WHAT IT DOES:
-#   1. detectIntent()     — distress / denial / help_seeking / positive_engagement / neutral
-#   2. analyzeSentiment() — positive / negative / neutral polarity
-#   3. extractKeywords()  — clinical keywords signalling anxiety, stress, sadness
-#
-# FIX HISTORY:
-#   FIX 1 — negation checked BEFORE counting positive words ("not good" → negative)
-#   FIX 2 — positive bank uses first-person anchors ("Are you good?" no longer scores)
-#   FIX 3 — negated wellbeing ("I am not good") → intent=distress, sentiment=negative
-#   FIX 4 — windowed anchor-based positive matching; "I am REALLY happy" now works;
-#            added positive_engagement intent for clearly happy speech
-#   FIX 5 — curly-apostrophe normalisation (\u2019 → ') so Whisper STT output like
-#            "I\u2019m" is treated the same as "I'm" for anchor and negation matching
-#
-# NO NEW DEPENDENCIES — stdlib + regex only.
-
 import re
 
-# ── Unicode normalisation helper ──────────────────────────────────────────────
 # Whisper STT often outputs curly/smart quotes. Normalise before any matching.
 
 def _normalise(text: str) -> str:
@@ -37,8 +14,7 @@ def _normalise(text: str) -> str:
         .replace("\u2013", " ")   # en-dash                      →  space
     )
 
-# ── Clinical keyword banks ────────────────────────────────────────────────────
-
+# ── Clinical keyword banks
 _ANXIETY_KEYWORDS_EN = [
     "panic", "panic attack", "anxiety", "anxious", "nervous", "worried",
     "worry", "fear", "scared", "terrified", "racing heart", "palpitation",
@@ -83,7 +59,7 @@ _HELP_KEYWORDS_UR = [
     "مدد", "مدد چاہیے", "کسی سے بات", "ڈاکٹر", "ماہر", "ہیلپ لائن",
 ]
 
-# ── Wellbeing keyword bank (FIX 3) ───────────────────────────────────────────
+# ── Wellbeing keyword bank 
 # Negated form ("I am not good/fine/okay") → distress signal.
 
 _WELLBEING_KEYWORDS_EN = [
@@ -94,8 +70,7 @@ _WELLBEING_KEYWORDS_UR = [
     "بہتر", "ٹھیک", "اچھا", "خوش", "سکون", "پرسکون",
 ]
 
-# ── Positive keyword bank (FIX 4) ────────────────────────────────────────────
-# Bare words — runtime anchor check ensures only first-person uses count.
+# ── Positive keyword bank 
 
 _POSITIVE_KEYWORDS_EN = frozenset({
     "happy", "happiness", "glad", "pleased", "content", "fine",
@@ -123,7 +98,7 @@ _FP_ANCHORS_UR = frozenset({"میں", "ہم", "مجھے", "ہمیں", "میرا"
 
 _ANCHOR_WINDOW = 6   # tokens left/right to search for anchor
 
-# ── Negation patterns ─────────────────────────────────────────────────────────
+# ── Negation patterns 
 
 _NEGATION_EN = re.compile(
     r"\b(not|no|never|don't|dont|didn't|didnt|isn't|isnt|"
@@ -135,7 +110,7 @@ _NEGATION_UR = re.compile(
     r"(نہیں|نہ|کبھی نہیں|مت|بالکل نہیں)"
 )
 
-# ── Intent constants ──────────────────────────────────────────────────────────
+# ── Intent constants
 
 INTENT_DISTRESS  = "distress"
 INTENT_DENIAL    = "denial"
@@ -144,27 +119,8 @@ INTENT_POSITIVE  = "positive_engagement"
 INTENT_NEUTRAL   = "neutral"
 
 
-# ─────────────────────────────────────────────────────────────────────────────
 
 class NLU:
-    """
-    Natural Language Understanding for SentiCare.
-    STT → NLU → EmotionAnalyzer
-
-    Public result keys:
-        intent              str   — distress | denial | help_seeking |
-                                    positive_engagement | neutral
-        sentiment           str   — positive | negative | neutral
-        sentiment_score     float — -1.0 … +1.0
-        keywords            dict  — {anxiety, stress, sadness, help}
-        positive_keywords   list  — matched positive keyword strings
-        language            str   — "en" | "ur"
-        negation_found      bool  — negation near clinical keyword
-        negated_wellbeing   bool  — negation near wellbeing word (FIX 3)
-        anxiety_boost       float — 0.0–0.3 additive boost for EmotionAnalyzer
-        stress_boost        float
-        sadness_boost       float
-    """
 
     def __init__(self):
         self.intent:            str   = INTENT_NEUTRAL
@@ -176,24 +132,10 @@ class NLU:
         self.negation_found:    bool  = False
         self.negated_wellbeing: bool  = False
 
-    # ── Public entry point ────────────────────────────────────────────────────
 
     def analyze(self, text: str, language: str = "en") -> dict:
-        """
-        Full NLU pipeline.
-
-        Parameters
-        ----------
-        text     : raw STT transcript (may be empty)
-        language : "en" or "ur"
-
-        Returns
-        -------
-        dict — all NLU fields + boost values for EmotionAnalyzer
-        """
         self.language = language
 
-        # FIX 5 — normalise curly quotes from Whisper before anything else
         text = _normalise((text or "").strip())
 
         if not text:
@@ -234,7 +176,6 @@ class NLU:
         )
         return result
 
-    # ── Public aliases (match class diagram) ──────────────────────────────────
 
     def detectIntent(self, text: str, language: str = "en") -> str:
         self.analyze(text, language)
@@ -248,7 +189,7 @@ class NLU:
         self.language = language
         return self._extract_keywords(_normalise(text), language)
 
-    # ── Private: keyword extraction ───────────────────────────────────────────
+    # keyword extraction 
 
     def _extract_keywords(self, text: str, language: str) -> dict:
         text_lower = text.lower()
@@ -276,22 +217,8 @@ class NLU:
 
         return found
 
-    # ── Private: positive keyword extraction (FIX 4 + FIX 5) ─────────────────
 
     def _extract_positive_keywords(self, text: str, language: str) -> list:
-        """
-        Windowed anchor-based matching.
-
-        For each token that matches the positive bank:
-          1. Check ±ANCHOR_WINDOW tokens for a first-person anchor.
-             → no anchor  means the sentence is directed at someone else ("Are you happy?")
-          2. Check the same window for negation.
-             → negation present  means "I am NOT happy" → skip
-          3. Both checks pass → valid positive hit.
-
-        FIX 5: text is already normalised by analyze() so "I\u2019m" → "I'm"
-        before tokenisation, ensuring "i'm" appears in _FP_ANCHORS_EN.
-        """
         if language == "ur":
             pos_bank    = _POSITIVE_KEYWORDS_UR
             anchors     = _FP_ANCHORS_UR
@@ -314,7 +241,6 @@ class NLU:
             win_tokens = tokens[lo:hi]
             win_str    = " ".join(win_tokens)
 
-            # Must have a first-person anchor in window
             if not any(re.sub(r"[^\w']", "", t) in anchors for t in win_tokens):
                 print(
                     f"[NLU] '{clean}' skipped — no first-person anchor "
@@ -336,19 +262,9 @@ class NLU:
 
         return matched
 
-    # ── Private: negation detection (FIX 3 + FIX 5) ──────────────────────────
+    #  negation detection 
 
     def _detect_negation(self, text: str, language: str) -> tuple:
-        """
-        Returns (negation_found, negated_wellbeing).
-
-        negation_found    — negation appeared near a clinical keyword
-        negated_wellbeing — negation appeared near a wellbeing word
-                            ("I am not good/fine/okay")
-
-        FIX 5: text is pre-normalised so "I\u2019m not" → "I'm not",
-        which matches the compiled _NEGATION_EN pattern.
-        """
         pattern = _NEGATION_UR if language == "ur" else _NEGATION_EN
         tokens  = text.lower().split()
 
@@ -396,14 +312,8 @@ class NLU:
 
         return negation_found, negated_wellbeing
 
-    # ── Private: sentiment scoring ────────────────────────────────────────────
-
+    # sentiment scoring 
     def _score_sentiment(self) -> tuple:
-        """
-        positive_count = validated positive keywords (FIX 4)
-        negative_count = clinical count + negated_wellbeing flag (FIX 3)
-        score = (pos - neg) / max(total, 1), clamped [-1, +1]
-        """
         negative_count = (
             len(self.keywords.get("anxiety", [])) +
             len(self.keywords.get("stress",  [])) +
@@ -429,18 +339,9 @@ class NLU:
 
         return label, score
 
-    # ── Private: intent classification ───────────────────────────────────────
+    # intent classification 
 
     def _classify_intent(self) -> str:
-        """
-        Priority:
-          1. help keywords          → help_seeking
-          2. negation + clinical    → denial
-          3. clinical distress      → distress
-          4. negated wellbeing      → distress
-          5. positive keywords      → positive_engagement
-          6. fallback               → neutral
-        """
         has_clinical = (
             len(self.keywords.get("anxiety", [])) > 0 or
             len(self.keywords.get("stress",  [])) > 0 or
@@ -460,14 +361,9 @@ class NLU:
             return INTENT_POSITIVE
         return INTENT_NEUTRAL
 
-    # ── Private: EmotionAnalyzer boost values ─────────────────────────────────
+    # EmotionAnalyzer boost values 
 
     def _compute_boosts(self) -> dict:
-        """
-        Each clinical keyword → +0.08, capped at 0.30 per category.
-        Halved when negation_found (user is denying the feeling).
-        negated_wellbeing with no clinical keywords → small baseline boost.
-        """
         def _boost(count: int) -> float:
             raw = min(count * 0.08, 0.30)
             return round(raw * 0.5, 3) if self.negation_found else round(raw, 3)
@@ -488,7 +384,7 @@ class NLU:
 
         return boosts
 
-    # ── Private: empty result ─────────────────────────────────────────────────
+    # empty result 
 
     def _empty_result(self) -> dict:
         return {
@@ -506,14 +402,12 @@ class NLU:
         }
 
 
-# ── Smoke tests ───────────────────────────────────────────────────────────────
-# python nlu.py
+#  Smoke tests 
 
 if __name__ == "__main__":
     nlu = NLU()
 
     tests = [
-        # (desc, text, lang, exp_intent, exp_sentiment)
         (
             "Bug 1 — 'I am not good'",
             "Hello chatbot, how are you? I am not good. Are you good? Are you listening?",

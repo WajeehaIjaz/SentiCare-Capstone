@@ -1,22 +1,4 @@
-# stt.py — FINAL CORRECTED (unchanged logic, added MarianMT install note)
-#
-# NOTE ON MARIAN MT:
-# ─────────────────────────────────────────────────────────────────────────────
-# If MarianMT is not installed, EmotionAnalyzer falls back to running Urdu
-# text directly through the English classifier (Strategy B in v5).
-# For best Urdu emotion accuracy, install the translation model:
-#
-#   pip install transformers sentencepiece sacremoses
-#   python -c "from transformers import pipeline; \
-#              pipeline('translation', model='Helsinki-NLP/opus-mt-ur-en')"
-#
-# This downloads ~300 MB once. After that, Urdu text is translated to English
-# before emotion classification, giving much better accuracy.
-#
-# Also: change MODEL_SIZE from "medium" to "small" if you want faster STT
-# at the cost of slightly lower Urdu accuracy.
-# ─────────────────────────────────────────────────────────────────────────────
-
+# stt.py
 import logging
 import whisper
 
@@ -54,10 +36,6 @@ class STT:
         self.stt_confidence: float = 0.0
 
     def convert_to_text(self, audio_path: str, language: str = "en") -> dict:
-        """
-        Transcribe audio_path with Whisper.
-        Always pass language explicitly — never None.
-        """
         import os
         if not audio_path or not os.path.exists(audio_path):
             return {

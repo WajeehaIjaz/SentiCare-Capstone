@@ -1,17 +1,4 @@
-# voice_input_handler.py — FIXED v8
-#
-# CHANGES vs v7:
-# ─────────────────────────────────────────────────────────────────────────────
-# DEPRESSION KEY IN voice_fusion_for_ml (fix):
-#   v7 only included anxiety/stress/sadness in voice_fusion_for_ml.
-#   emotion_analyzer v7 now returns a "depression" key in fusion, but
-#   voice_input_handler was not forwarding it.
-#
-#   Fix: voice_fusion_for_ml now includes fusion.get("depression", 0.0)
-#   so app.py receives the depression signal alongside the others.
-#
-# ALL OTHER CODE IDENTICAL TO v7.
-# ─────────────────────────────────────────────────────────────────────────────
+# voice_input_handler.py 
 
 import os
 import io
@@ -39,7 +26,7 @@ class VoiceInputHandler:
         self.raw_audio   = None
         self.sample_rate = self.TARGET_SR
 
-    # ── Strategy 1: ffmpeg ───────────────────────────────────────────────────
+    # ── Strategy 1: ffmpeg 
     @staticmethod
     def _decode_ffmpeg_pipe(input_path: str, output_wav_path: str,
                             target_sr: int = 16_000) -> tuple:
@@ -105,7 +92,7 @@ class VoiceInputHandler:
 
         return True, rms
 
-    # ── Strategy 2: PyAV float32 ─────────────────────────────────────────────
+    # ── Strategy 2: PyAV float32
     @staticmethod
     def _decode_pyav_float32(input_path: str, output_wav_path: str,
                              target_sr: int = 16_000) -> tuple:
@@ -178,7 +165,7 @@ class VoiceInputHandler:
             print(f"[PyAV-f32] WAV write failed: {e}", flush=True)
             return False, 0.0
 
-    # ── Strategy 3: soundfile direct ─────────────────────────────────────────
+    # ── Strategy 3: soundfile direct
     @staticmethod
     def _decode_soundfile_direct(input_path: str, output_wav_path: str,
                                  target_sr: int = 16_000) -> tuple:
@@ -216,7 +203,7 @@ class VoiceInputHandler:
             print(f"[soundfile-direct] WAV write failed: {e}", flush=True)
             return False, 0.0
 
-    # ── Strategy 4: WAV direct ───────────────────────────────────────────────
+    # ── Strategy 4: WAV direct
     @staticmethod
     def _try_read_as_wav(input_path: str, output_wav_path: str,
                          target_sr: int = 16_000) -> tuple:
@@ -258,7 +245,7 @@ class VoiceInputHandler:
 
         return True, rms
 
-    # ── Strategy 5: pydub ────────────────────────────────────────────────────
+    # ── Strategy 5: pydub
     def _decode_with_pydub(self, input_path: str, out_path: str) -> tuple:
         try:
             from pydub import AudioSegment
@@ -282,7 +269,7 @@ class VoiceInputHandler:
             print(f"[pydub] Failed: {exc}", flush=True)
             return False, 0.0
 
-    # ── Verify WAV ───────────────────────────────────────────────────────────
+    # ── Verify WAV
     @staticmethod
     def _verify_wav(wav_path: str) -> tuple:
         try:
@@ -309,7 +296,7 @@ class VoiceInputHandler:
             print(f"[verify-wav] read failed: {e}", flush=True)
             return False, 0.0
 
-    # ── preprocess_audio ─────────────────────────────────────────────────────
+    # ── preprocess_audio
     def preprocess_audio(self, input_path: str) -> str:
         tmp      = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
         out_path = tmp.name
@@ -340,7 +327,7 @@ class VoiceInputHandler:
         print("[VoiceInputHandler] ALL strategies failed. Returning last output path.", flush=True)
         return out_path
 
-    # ── run_pipeline ─────────────────────────────────────────────────────────
+    # ── run_pipeline
     def run_pipeline(self, audio_path: str, lang: str = "en") -> dict:
         """
         Full pipeline:
@@ -353,10 +340,10 @@ class VoiceInputHandler:
         """
         cleaned_path = None
         try:
-            # ── 1. Decode audio to clean WAV ──────────────────────────────
+            # ── 1. Decode audio to clean WAV
             cleaned_path = self.preprocess_audio(audio_path)
 
-            # ── 2. Speech-to-text ─────────────────────────────────────────
+            # ── 2. Speech-to-text 
             stt        = STT()
             stt_result = stt.convert_to_text(cleaned_path, language=lang)
 
@@ -369,7 +356,7 @@ class VoiceInputHandler:
                 flush=True,
             )
 
-            # ── 3. NLU ────────────────────────────────────────────────────
+            # ── 3. NLU
             nlu        = NLU()
             nlu_result = nlu.analyze(transcript, language=lang)
 
@@ -380,7 +367,7 @@ class VoiceInputHandler:
                 flush=True,
             )
 
-            # ── 4. Voice biomarker extraction ─────────────────────────────
+            # ── 4. Voice biomarker extraction 
             biomarker  = VoiceBiomarker()
             biomarker.extract_mfcc(cleaned_path)
             bio_result = biomarker.analyze_voice_emotion()
@@ -392,7 +379,7 @@ class VoiceInputHandler:
                 flush=True,
             )
 
-            # ── 5. Silence check ──────────────────────────────────────────
+            # ── 5. Silence check 
             is_truly_silent = (
                 bio_result["pitch"] == 0.0
                 and bio_result["tone"] < VoiceBiomarker.SILENCE_TONE_THRESHOLD
@@ -425,7 +412,7 @@ class VoiceInputHandler:
                     },
                 }
 
-            # ── 6. Emotion classification ─────────────────────────────────
+            # ── 6. Emotion classification 
             analyzer   = EmotionAnalyzer()
             emo_result = analyzer.classify_emotion(
                 transcript,
@@ -436,7 +423,7 @@ class VoiceInputHandler:
 
             fusion = emo_result["fusion"]
 
-            # ── FIXED: include depression in voice_fusion_for_ml ──────────
+            # ── FIXED: include depression in voice_fusion_for_ml 
             voice_fusion_for_ml = {
                 "anxiety":    fusion.get("anxiety",    0.0),
                 "stress":     fusion.get("stress",     0.0),

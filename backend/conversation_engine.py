@@ -1,22 +1,4 @@
 # backend/chatbot/conversation_engine.py
-#
-# PIPELINE POSITION:
-#   Called by app.py for:
-#     • calculate_screening_scores()  — after screening Qs
-#     • determine_condition()         — routes to anxiety/stress/depression
-#     • run_prediction()              — wraps predictor.predict()
-#     • map_prediction_to_level()     — int 0/1/2 → "low"/"medium"/"high"
-#     • generate_cbt_response()       — wraps select_template()
-#
-# CHANGES vs previous version:
-# ─────────────────────────────────────────────────────────────────────────────
-# NEW — generate_cbt_response() accepts voice_dominant parameter.
-#   This threads the FusionLayer output all the way to select_template()
-#   so the CBT-Template Manager receives the full signal:
-#       condition + level + voice_dominant + lang
-#
-# ALL OTHER LOGIC (FIX 1–3 from previous version) IS PRESERVED EXACTLY.
-# ─────────────────────────────────────────────────────────────────────────────
 
 from backend.chatbot.router            import route_condition
 from backend.chatbot.predictor         import predict
@@ -47,7 +29,7 @@ class ConversationEngine:
     def __init__(self):
         pass
 
-    # ── Screening ────────────────────────────────────────────────────────────
+    # ── Screening 
 
     def calculate_screening_scores(self, screening_answers: dict) -> dict:
         scores = {"anxiety": 0, "depression": 0, "stress": 0}
@@ -64,28 +46,19 @@ class ConversationEngine:
     def determine_condition(self, scores: dict) -> str:
         return route_condition(scores)
 
-    # ── Feature questions ────────────────────────────────────────────────────
-
+    # ── Feature questions 
     def get_feature_questions(self, condition: str) -> list:
         if condition == "anxiety":    return ANXIETY_FEATURE_QUESTIONS
         if condition == "stress":     return STRESS_FEATURE_QUESTIONS
         if condition == "depression": return DEPRESSION_FEATURE_QUESTIONS
         return []
 
-    # ── Prediction ───────────────────────────────────────────────────────────
+    # ── Prediction 
 
     def run_prediction(self, condition: str, feature_answers: dict):
-        """
-        Returns int 0/1/2 (or None for unknown condition).
-        feature_answers here is already the FUSED vector from FusionLayer.
-        """
         return predict(condition, feature_answers)
 
     def map_prediction_to_level(self, prediction) -> str:
-        """
-        Always returns "low" | "medium" | "high".
-        Never returns None.
-        """
         if prediction is None:
             print(
                 f"[ConversationEngine] ⚠️  map_prediction_to_level received None "
@@ -114,30 +87,15 @@ class ConversationEngine:
         )
         return _FALLBACK_LEVEL
 
-    # ── CBT response ─────────────────────────────────────────────────────────
+    # ── CBT response 
 
     def generate_cbt_response(
         self,
         condition:      str,
         level:          str,
         lang:           str = "en",
-        voice_dominant: str = "neutral",      # ← NEW: from FusionLayer
+        voice_dominant: str = "neutral",     
     ) -> dict | None:
-        """
-        Returns dict:
-            validation      str
-            steps           list[str]
-            steps_alt       list[str] | None
-            grounding       str
-            questions       list[str]
-            voice_dominant  str          ← echoed from template_selector
-            prefer_alt_steps bool        ← True when voice suggests alt steps
-        or None if no template found.
-
-        voice_dominant threads the FusionLayer output into the
-        CBT-Template Manager (select_template) so the full pipeline
-        signal is:  condition + level + voice_dominant + lang.
-        """
         if not level:
             print(
                 f"[ConversationEngine] ⚠️  generate_cbt_response called with "
@@ -157,7 +115,7 @@ class ConversationEngine:
             condition,
             level,
             lang=lang,
-            voice_dominant=voice_dominant,     # ← forwarded
+            voice_dominant=voice_dominant,     
         )
 
         if template is None:
@@ -183,7 +141,6 @@ class ConversationEngine:
             "steps_alt":       therapy.get("steps_alt"),
             "grounding":       therapy["grounding_statement"],
             "questions":       template["guided_questions"],
-            # ── new ──────────────────────────────────────────────────────
             "voice_dominant":  template.get("voice_dominant", voice_dominant),
             "prefer_alt_steps":template.get("prefer_alt_steps", False),
         }

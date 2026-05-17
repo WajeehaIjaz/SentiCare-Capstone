@@ -1,24 +1,3 @@
-// App.jsx — v10
-//
-// CHANGES vs v9:
-// ─────────────────────────────────────────────────────────────────────────────
-// FIX: "Thank you. Based on your responses..." message was SILENT.
-//
-// ROOT CAUSE:
-//   In the `thankyou` stage, `tyIdx` is assigned INSIDE the setMessages
-//   updater callback, but speakMessage(data.message, tyIdx) was called
-//   IMMEDIATELY after in the same synchronous tick — before React flushed
-//   the state update. So tyIdx was still `undefined` when speakMessage ran,
-//   causing it to silently fail or speak the wrong message.
-//
-//   Same issue existed in `pre_screening` for the greeting message.
-//
-// FIX:
-//   Wrapped both speakMessage calls in setTimeout(..., 50) so React has
-//   time to flush the state update before TTS tries to use the index.
-//
-// ALL OTHER LOGIC IDENTICAL TO v9.
-// ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
@@ -32,9 +11,7 @@ const API_URL = "http://localhost:5000/chat";
 const TTS_URL = "http://localhost:5000/tts";
 const MAX_INPUT_CHARS = 500;
 
-// ════════════════════════════════════════════════════════════════
 //  STORAGE HELPERS
-// ════════════════════════════════════════════════════════════════
 const local = {
   get: (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
   set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
@@ -47,7 +24,7 @@ const session = {
   del: (k) => sessionStorage.removeItem(k),
 };
 
-// ── Therapy detection ───────────────────────────────────────────
+// ── Therapy detection 
 const THERAPY_TRIGGERS = [
   "steps:", "exercise:", "technique:", "try this:", "practice:",
   "breathing", "grounding", "progressive muscle", "cognitive", "reframe",
@@ -65,7 +42,7 @@ const parseTherapyCard = (text) => {
   return { title, steps };
 };
 
-// ── Input validation ────────────────────────────────────────────
+// ── Input validation 
 const validateInput = (text, lang) => {
   const trimmed = text.trim();
   if (!trimmed) return lang === "ur" ? "پیغام خالی نہیں ہو سکتا۔" : "Message cannot be empty.";
@@ -83,7 +60,7 @@ const validateInput = (text, lang) => {
   return "";
 };
 
-// ── Audio engine ─────────────────────────────────────────────────
+// ── Audio engine
 const sharedAudio = new Audio();
 sharedAudio.preload = "none";
 
@@ -113,9 +90,7 @@ const playTTS = (text, rate, lang, onStart, onEnd, onError) => {
   sharedAudio.play().catch(err => { console.error("TTS play() error:", err); onError(); });
 };
 
-// ════════════════════════════════════════════════════════════════
 //  UI STRINGS — bilingual
-// ════════════════════════════════════════════════════════════════
 const UI = {
   en: {
     appName:        "SentiCare",
@@ -346,9 +321,7 @@ const DAILY_TIPS_UR = [
 const levelToNum = (level) =>
   level === "high" ? 3 : level === "medium" ? 2 : 1;
 
-// ════════════════════════════════════════════════════════════════
 //  TOAST SYSTEM
-// ════════════════════════════════════════════════════════════════
 function ToastContainer({ toasts }) {
   return (
     <div className="toast-container">
@@ -367,9 +340,7 @@ function useToast() {
   return { toasts, show };
 }
 
-// ════════════════════════════════════════════════════════════════
 //  AUTH SCREEN
-// ════════════════════════════════════════════════════════════════
 function AuthScreen({ onLogin, lang }) {
   const t = UI[lang];
   const [mode, setMode] = useState("login");
@@ -479,9 +450,7 @@ function AuthScreen({ onLogin, lang }) {
   );
 }
 
-// ════════════════════════════════════════════════════════════════
 //  CONFIRM DIALOG
-// ════════════════════════════════════════════════════════════════
 function ConfirmDialog({ icon, title, text, onConfirm, onCancel, lang }) {
   const t = UI[lang];
   return (
@@ -499,9 +468,7 @@ function ConfirmDialog({ icon, title, text, onConfirm, onCancel, lang }) {
   );
 }
 
-// ════════════════════════════════════════════════════════════════
 //  SIDEBAR CONTENT
-// ════════════════════════════════════════════════════════════════
 function SidebarContent({ user, page, setPage, sessions, lang, voiceOn, setVoiceOn, speechRate, setSpeechRate, onLogout, todayTip, onClose }) {
   const t = UI[lang];
   const initials = user.name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
@@ -561,9 +528,7 @@ function SidebarContent({ user, page, setPage, sessions, lang, voiceOn, setVoice
   );
 }
 
-// ════════════════════════════════════════════════════════════════
 //  EMOTION TREND CHART
-// ════════════════════════════════════════════════════════════════
 function EmotionTrendChart({ sessions, lang }) {
   const t = UI[lang];
   const chartData = [...sessions].reverse().map(s => ({
@@ -628,9 +593,7 @@ function EmotionTrendChart({ sessions, lang }) {
   );
 }
 
-// ════════════════════════════════════════════════════════════════
 //  ROOT
-// ════════════════════════════════════════════════════════════════
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => session.get("sc_current_user") || null);
   const [lang, setLang] = useState(local.get("sc_lang") || "en");
@@ -654,9 +617,7 @@ export default function App() {
   return <MainApp user={currentUser} onLogout={handleLogout} lang={lang} toggleLang={toggleLang} />;
 }
 
-// ════════════════════════════════════════════════════════════════
 //  MAIN APP
-// ════════════════════════════════════════════════════════════════
 function MainApp({ user, onLogout, lang, toggleLang }) {
   const t = UI[lang];
   const isRTL = lang === "ur";
@@ -779,7 +740,7 @@ function MainApp({ user, onLogout, lang, toggleLang }) {
   const openPopup = (text) => setPopup({ text, card: parseTherapyCard(text) });
   const closePopup = () => { stopAudio(); setPopupSpeaking(false); setPopupTtsLoading(false); setPopup(null); };
 
-  // ── Core send ─────────────────────────────────────────────────
+  // ── Core send 
   const sendMessage = async (text) => {
     setIsTyping(true);
     setCurrentOptions(null);
@@ -800,7 +761,7 @@ function MainApp({ user, onLogout, lang, toggleLang }) {
       const data = await res.json();
       const firstOptions = data.options ?? null;
 
-      // ── THANKYOU stage ────────────────────────────────────────
+      // ── THANKYOU stage 
       if (data.stage === "thankyou") {
         // Step 1: show thankyou message immediately
         const tyText = data.message;
@@ -883,14 +844,13 @@ function MainApp({ user, onLogout, lang, toggleLang }) {
               }
             });
           } else if (q1Data && q1Idx !== undefined) {
-            // tyText empty, just speak q1 directly
             setTimeout(() => speakMessage(q1Data.message, q1Idx), 50);
           }
         }
         return;
       }
 
-      // ── PRE_SCREENING stage (greeting → first screening Q) ────
+      // ── PRE_SCREENING stage (greeting → first screening Q) 
       if (data.stage === "pre_screening") {
         let greetingIdx;
         setMessages(prev => {
@@ -920,7 +880,6 @@ function MainApp({ user, onLogout, lang, toggleLang }) {
             let q1Idx;
             setMessages(prev => {
               q1Idx = prev.length;
-              // ✅ FIX v10: store speak fn, called after greeting finishes
               questionSpeakFn = () => {
                 if (voiceOn) {
                   setTimeout(() => speakMessage(q1Text, q1Idx), 50);
@@ -947,7 +906,6 @@ function MainApp({ user, onLogout, lang, toggleLang }) {
             sharedAudio.playbackRate = Math.min(Math.max(speechRate, 0.5), 2);
             sharedAudio.oncanplay = () => {
               setTtsLoading(false);
-              // ✅ FIX v10: defer greetingIdx usage by 50ms
               setTimeout(() => setSpeakingIdx(greetingIdx), 50);
             };
             sharedAudio.onended = async () => {
@@ -975,7 +933,7 @@ function MainApp({ user, onLogout, lang, toggleLang }) {
         return;
       }
 
-      // ── Normal question/answer flow ───────────────────────────
+      // ── Normal question/answer flow 
       let newMsgIdx;
       setMessages(prev => {
         newMsgIdx = prev.length;
@@ -983,7 +941,6 @@ function MainApp({ user, onLogout, lang, toggleLang }) {
       });
       setCurrentOptions(firstOptions);
 
-      // ✅ FIX v10: defer speak for normal flow messages too
       if (voiceOn) {
         const msgToSpeak = data.message;
         setTimeout(() => {

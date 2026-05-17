@@ -1,41 +1,4 @@
-# voice_biomarker.py — FIXED v9
-#
-# BUGS FIXED vs v8:
-# ─────────────────────────────────────────────────────────────────────────────
-# CRITICAL — IndentationError in v8 crashed Flask on import.
-#   v8 had broken indentation in the heuristic block (elif at 2 spaces,
-#   orphaned comment mid-block). Python raised IndentationError before any
-#   class loaded, so Flask silently kept running the old .pyc cache.
-#   The old cache still had pitch>180/tone>0.015 thresholds → "aroused"
-#   fired for all Urdu speech → always returned "excited".
-#   FIX: Entire analyze_voice_emotion() rewritten with clean, consistent
-#   4-space indentation.
-#
-# THRESHOLDS RAISED — "aroused" no longer fires for normal Urdu speech.
-#   Urdu speakers naturally have higher prosodic energy than the old
-#   thresholds assumed.
-#     old: pitch > 180 AND tone > 0.015
-#     new: pitch > 240 AND tone > 0.032
-#   Only genuine high-activation states (panic, crying, shouting) reach
-#   "aroused" now. Normal expressive Urdu speech falls through to
-#   "stressed", "tense", or "sad" as appropriate.
-#
-# NEW "anxious" ACOUSTIC RULE — intermediate range between aroused and tense.
-#   pitch 190–240 AND tone 0.018–0.032 → "anxious"
-#   This was the zone where old code fired "aroused" for worried/nervous
-#   Urdu speakers. Now correctly labelled.
-#
-# SHORT CLIP GUARD — clips < 0.5 s give unreliable pitches from piptrack.
-#   If audio is shorter than MIN_SAMPLES_FOR_PITCH, pitch is forced to 0
-#   and the tone-only path runs instead.
-#
-# DEPRESSION THRESHOLD tightened — mfcc_mean < -8.0 (was -5.0).
-#   Old threshold caught normal quiet speech. -8.0 requires genuinely
-#   flat, energy-less spectral content.
-#
-# ALL OTHER CODE IDENTICAL TO v8.
-# ─────────────────────────────────────────────────────────────────────────────
-
+# voice_biomarker.py 
 import numpy as np
 
 # Below this length, piptrack produces unreliable pitch — skip it.
@@ -43,14 +6,6 @@ MIN_SAMPLES_FOR_PITCH = 8000   # 0.5 s @ 16 kHz
 
 
 class VoiceBiomarker:
-    """
-    Extracts acoustic biomarkers (MFCC, pitch, RMS energy) from audio,
-    then maps them to a rough emotion estimate via rule-based heuristics.
-    Language-agnostic — works for both English and Urdu speech.
-
-    Possible emotion_from_voice values:
-        "aroused" | "anxious" | "stressed" | "depressed" | "sad" | "tense" | "neutral"
-    """
 
     SILENCE_TONE_THRESHOLD = 0.0001
 
@@ -60,7 +15,7 @@ class VoiceBiomarker:
         self.tone:               float  = 0.0
         self.emotion_from_voice: str    = "neutral"
 
-    # ── _load_audio ──────────────────────────────────────────────────────────
+    # ── _load_audio 
     @staticmethod
     def _load_audio(audio_path: str, sr: int = 16000):
         """
@@ -98,7 +53,7 @@ class VoiceBiomarker:
         )
         return data, sr
 
-    # ── extract_mfcc ─────────────────────────────────────────────────────────
+    # ── extract_mfcc
     def extract_mfcc(self, audio_path: str, n_mfcc: int = 40) -> np.ndarray:
         """
         Load audio → compute MFCCs, pitch (piptrack), RMS energy.
@@ -108,11 +63,11 @@ class VoiceBiomarker:
 
         y, sr = self._load_audio(audio_path)
 
-        # ── MFCCs ─────────────────────────────────────────────────────────
+        # ── MFCCs 
         mfcc_matrix        = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=n_mfcc)
         self.mfcc_features = np.mean(mfcc_matrix, axis=1)
 
-        # ── Pitch via piptrack ─────────────────────────────────────────────
+        # ── Pitch via piptrack
         # Short-clip guard: skip piptrack if audio is too brief.
         if len(y) < MIN_SAMPLES_FOR_PITCH:
             self.pitch = 0.0
@@ -144,7 +99,7 @@ class VoiceBiomarker:
                 print(f"[VoiceBiomarker] piptrack failed ({e}), using pitch=0.", flush=True)
                 self.pitch = 0.0
 
-        # ── RMS energy ────────────────────────────────────────────────────
+        # ── RMS energy 
         rms       = librosa.feature.rms(y=y)
         self.tone = float(np.mean(rms))
 
@@ -157,24 +112,8 @@ class VoiceBiomarker:
         )
         return self.mfcc_features
 
-    # ── analyze_voice_emotion ─────────────────────────────────────────────────
+    # ── analyze_voice_emotion
     def analyze_voice_emotion(self, mfcc_features: np.ndarray = None) -> dict:
-        """
-        Rule-based biomarker → emotion mapping.
-        Thresholds tuned for desk/laptop microphones including Urdu speakers.
-
-        Rule order (highest priority first):
-          1. Silence guard  — pitch=0 AND tone near-zero
-          2. aroused        — pitch > 240 AND tone > 0.032  (panic / extreme activation)
-          3. anxious        — pitch 190–240 AND tone 0.018–0.032  (worried / nervous)
-          4. stressed       — tone > 0.018  (high energy, any pitch)
-          5. depressed      — pitch < 110 AND tone < 0.006 AND mfcc_mean < -8.0
-          6. sad            — 0 < pitch < 130 AND tone < 0.008
-          7. tense          — tone > 0.012 OR any voiced pitch
-          8. neutral fallback
-
-        Returns dict: emotion_from_voice, pitch, tone, mfcc_mean
-        """
         features = mfcc_features if mfcc_features is not None else self.mfcc_features
         if features is None:
             raise ValueError("Call extract_mfcc() first, or pass mfcc_features.")
@@ -203,35 +142,35 @@ class VoiceBiomarker:
                 "mfcc_mean": mfcc_mean,
             }
 
-        # ── 2. Aroused ────────────────────────────────────────────────────
+        # ── 2. Aroused 
         # Only genuine extreme activation: shouting, panic, crying.
         # Normal expressive Urdu speech does NOT reach these thresholds.
         if self.pitch > 240 and self.tone > 0.032:
             emotion = "aroused"
 
-        # ── 3. Anxious ────────────────────────────────────────────────────
+        # ── 3. Anxious 
         # Intermediate zone: elevated pitch + moderate energy.
         # Covers worried / nervous speech in both English and Urdu.
         elif 190 <= self.pitch <= 240 and 0.018 <= self.tone <= 0.032:
             emotion = "anxious"
 
-        # ── 4. Stressed ───────────────────────────────────────────────────
+        # ── 4. Stressed 
         # High energy regardless of pitch — loud, pressured speech.
         elif self.tone > 0.018:
             emotion = "stressed"
 
-        # ── 5. Depressed ──────────────────────────────────────────────────
+        # ── 5. Depressed
         # Very low pitch + very low energy + spectrally flat MFCCs.
         # All three conditions required to avoid catching normal quiet speech.
         elif self.pitch < 110 and self.tone < 0.006 and mfcc_mean < -8.0:
             emotion = "depressed"
 
-        # ── 6. Sad ────────────────────────────────────────────────────────
+        # ── 6. Sad
         # Low pitch + low energy without full depression profile.
         elif (self.pitch > 0) and (self.pitch < 130) and (self.tone < 0.008):
             emotion = "sad"
 
-        # ── 7. Tense ──────────────────────────────────────────────────────
+        # ── 7. Tense
         # Moderate energy or any voiced speech that didn't match above.
         elif self.tone > 0.012:
             emotion = "tense"
@@ -239,7 +178,7 @@ class VoiceBiomarker:
         elif self.pitch > 0:
             emotion = "tense"
 
-        # ── 8. Neutral fallback ───────────────────────────────────────────
+        # ── 8. Neutral fallback 
         else:
             if self.tone > self.SILENCE_TONE_THRESHOLD:
                 # piptrack found no pitch but person was speaking.

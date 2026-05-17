@@ -1,46 +1,9 @@
-# emotion_analyzer.py — FIXED v7
-#
-# CHANGES vs v6:
-# ─────────────────────────────────────────────────────────────────────────────
-# DEPRESSION FUSION SCORE (new):
-#   v6 computed four fused scores: anxiety, stress, sadness, joy.
-#   It upgraded the dominant label to "depressed" when voice_emotion was
-#   "depressed" AND fused_sadness > threshold — but it never computed or
-#   returned a dedicated depression score in the fusion dict.
-#
-#   Result: VoiceCheckIn.jsx always showed Depression 0% even when the user
-#   explicitly said "I am very depressed", because fusion["depression"] was
-#   missing from the API response.
-#
-#   Fix:
-#     1. Compute fused_depression from voice biomarker + sadness_text signal.
-#        Voice weight: 1.0 when voice_emotion=="depressed", else 0.
-#        Text weight:  sadness_text score (sadness in text correlates with
-#                      depression signal).
-#     2. Add "depression" key to the returned fusion dict.
-#     3. When NLU sadness_boost is applied and intent is distress/help_seeking,
-#        also boost fused_depression proportionally.
-#     4. sentiment_score for dominant=="depressed" now uses fused_depression.
-#
-# ALL OTHER LOGIC UNCHANGED from v6.
-# ─────────────────────────────────────────────────────────────────────────────
+# emotion_analyzer.py
 
 from transformers import pipeline as hf_pipeline
 
 
 class EmotionAnalyzer:
-    """
-    Classifies emotion from text + voice biomarkers + (optionally) NLU output.
-
-    Language support:
-      English — full text classification + voice fusion + NLU boost.
-      Urdu    — Strategy A: translate → classify (best).
-                Strategy B: run Urdu text directly through classifier (fallback).
-                Strategy C: voice-only if classifier unavailable.
-
-    Output labels:
-        "anxious" | "stressed" | "depressed" | "sad" | "excited" | "neutral"
-    """
 
     _classifier  = None
     _translator  = None
@@ -57,7 +20,7 @@ class EmotionAnalyzer:
     _DEFAULT_THRESHOLD            = 0.08
     _DEPRESSION_SADNESS_THRESHOLD = 0.05
 
-    # ── lazy loaders ─────────────────────────────────────────────────────────
+    # lazy loaders 
 
     @classmethod
     def _get_classifier(cls):
@@ -92,8 +55,7 @@ class EmotionAnalyzer:
         self.final_emotion_label: str   = "neutral"
         self.sentiment_score:     float = 0.0
 
-    # ── translation helper ────────────────────────────────────────────────────
-
+    #  translation helper
     @classmethod
     def _translate_urdu_to_english(cls, urdu_text: str) -> str:
         translator = cls._get_translator()
@@ -112,8 +74,7 @@ class EmotionAnalyzer:
             print(f"[EmotionAnalyzer] Translation failed: {e}", flush=True)
             return ""
 
-    # ── classify_emotion ──────────────────────────────────────────────────────
-
+    # ── classify_emotion
     def classify_emotion(
         self,
         text:             str,
@@ -121,24 +82,6 @@ class EmotionAnalyzer:
         language:         str  = "en",
         nlu_result:       dict = None,
     ) -> dict:
-        """
-        Classify emotion from transcript + voice biomarkers + NLU signals.
-
-        Parameters
-        ----------
-        text             : str       — transcript (may be empty)
-        biomarker_result : dict|None — output of VoiceBiomarker.analyze_voice_emotion()
-        language         : str       — "en" or "ur"
-        nlu_result       : dict|None — output of NLU.analyze() [optional]
-
-        Returns
-        -------
-        dict:
-            final_emotion_label : str
-            sentiment_score     : float
-            text_scores         : dict
-            fusion              : dict  — keys: anxiety, stress, sadness, depression, joy
-        """
         if biomarker_result is None:
             biomarker_result = {
                 "emotion_from_voice": "neutral",
@@ -149,7 +92,7 @@ class EmotionAnalyzer:
 
         voice_emotion = biomarker_result.get("emotion_from_voice", "neutral")
 
-        # ── Step 1: prepare text ──────────────────────────────────────────
+        # ── Step 1: prepare text 
         text_for_classification = text.strip()
         text_is_empty           = not text_for_classification
         text_reliability        = "reliable"
@@ -167,7 +110,7 @@ class EmotionAnalyzer:
                     flush=True,
                 )
 
-        # ── Step 2: text classification ───────────────────────────────────
+        # ── Step 2: text classification 
         if text_is_empty:
             text_scores = {
                 "sadness": 0.0, "anger":  0.0, "fear":     0.0,
@@ -200,7 +143,7 @@ class EmotionAnalyzer:
                 }
                 text_is_empty = True
 
-        # ── Step 3: map text scores → SentiCare emotion space ────────────
+        # ── Step 3: map text scores → SentiCare emotion space 
         anxiety_text = text_scores.get("fear",    0.0)
         stress_text  = (
             text_scores.get("anger",   0.0)
@@ -212,7 +155,7 @@ class EmotionAnalyzer:
             + text_scores.get("surprise", 0.0) * 0.3
         )
 
-        # ── Step 4: fusion weights ────────────────────────────────────────
+        # ── Step 4: fusion weights 
         if text_is_empty:
             voice_weight = 1.0
             text_weight  = 0.0
@@ -226,14 +169,13 @@ class EmotionAnalyzer:
             voice_weight = 0.30
             text_weight  = 0.70
 
-        # ── Step 5: voice map ─────────────────────────────────────────────
+        # ── Step 5: voice map
         _voice_map = {
             "aroused":   {"anxiety": 0.55, "stress": 0.25, "sadness": 0.0,  "depression": 0.0,  "joy": 0.05},
             "anxious":   {"anxiety": 1.0,  "stress": 0.0,  "sadness": 0.0,  "depression": 0.0,  "joy": 0.0 },
             "stressed":  {"anxiety": 0.0,  "stress": 1.0,  "sadness": 0.0,  "depression": 0.0,  "joy": 0.0 },
             "tense":     {"anxiety": 0.3,  "stress": 0.7,  "sadness": 0.0,  "depression": 0.0,  "joy": 0.0 },
             "sad":       {"anxiety": 0.0,  "stress": 0.0,  "sadness": 1.0,  "depression": 0.3,  "joy": 0.0 },
-            # ── KEY FIX: "depressed" voice now drives the depression score ──
             "depressed": {"anxiety": 0.0,  "stress": 0.0,  "sadness": 0.6,  "depression": 1.0,  "joy": 0.0 },
             "neutral":   {"anxiety": 0.0,  "stress": 0.0,  "sadness": 0.0,  "depression": 0.0,  "joy": 0.0 },
         }
@@ -243,15 +185,12 @@ class EmotionAnalyzer:
         fused_stress     = min(text_weight * stress_text  + voice_weight * vm["stress"],     1.0)
         fused_sadness    = min(text_weight * sadness_text + voice_weight * vm["sadness"],    1.0)
         fused_joy        = min(text_weight * joy_text     + voice_weight * vm["joy"],        1.0)
-        # ── NEW: depression score fused from voice + sadness text signal ──
-        # sadness_text contributes because textual sadness correlates with
-        # depression; the main driver is the voice biomarker "depressed" label.
         fused_depression = min(
             text_weight * sadness_text * 0.5 + voice_weight * vm["depression"],
             1.0
         )
 
-        # ── Step 6: NLU boost ─────────────────────────────────────────────
+        # ── Step 6: NLU boost 
         if nlu_result:
             intent          = nlu_result.get("intent",        "neutral")
             anxiety_boost   = nlu_result.get("anxiety_boost", 0.0)
@@ -282,8 +221,6 @@ class EmotionAnalyzer:
                 fused_anxiety    = min(fused_anxiety + anxiety_boost, 1.0)
                 fused_stress     = min(fused_stress  + stress_boost,  1.0)
                 fused_sadness    = min(fused_sadness + sadness_boost,  1.0)
-                # Sadness boost also lifts depression — they share the same
-                # NLU signal (clinical sadness keywords).
                 fused_depression = min(fused_depression + sadness_boost * 0.5, 1.0)
                 fused_joy        = min(fused_joy, 0.05)
 
@@ -311,12 +248,12 @@ class EmotionAnalyzer:
             flush=True,
         )
 
-        # ── Step 7: pick dominant emotion ─────────────────────────────────
+        # ── Step 7: pick dominant emotion 
         scores_map = {
             "anxious":   fused_anxiety,
             "stressed":  fused_stress,
             "sad":       fused_sadness,
-            "depressed": fused_depression,   # ← now participates in dominant selection
+            "depressed": fused_depression,   
             "excited":   fused_joy,
         }
 
@@ -339,16 +276,14 @@ class EmotionAnalyzer:
                     flush=True,
                 )
 
-        # ── Step 8: depression upgrade ────────────────────────────────────
-        # Kept as safety net: if voice biomarker says "depressed" and there
-        # is meaningful sadness/depression signal, always resolve to depressed.
+        # ── Step 8: depression upgrade
         if (
             voice_emotion == "depressed"
             and fused_sadness > self._DEPRESSION_SADNESS_THRESHOLD
         ):
             dominant = "depressed"
 
-        # ── Step 9: voice-only aroused safety net ─────────────────────────
+        # ── Step 9: voice-only aroused safety net 
         if text_is_empty and voice_emotion == "aroused" and dominant == "excited":
             dominant = "anxious"
 

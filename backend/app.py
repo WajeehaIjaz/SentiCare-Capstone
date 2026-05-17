@@ -1,19 +1,4 @@
-# app.py — v13
-#
-# CHANGES vs v12:
-# ─────────────────────────────────────────────────────────────────────────────
-# ADDED: MongoDB Atlas integration via db.py
-#
-# What gets saved:
-#   • sessions        — after /voice-intro completes
-#   • biomarkers      — pitch, tone, mfcc, emotion scores
-#   • chat_history    — every user + assistant message
-#   • predictions     — ML result, fusion mode, CBT level
-#   • feedback        — thumbs up / thumbs down signals
-#
-# ALL OTHER LOGIC IDENTICAL TO v12.
-# ─────────────────────────────────────────────────────────────────────────────
-
+# app.py
 from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 
@@ -35,7 +20,7 @@ from backend.voice_input_handler import VoiceInputHandler
 from backend.stt import STT
 
 
-# ── MongoDB helpers ───────────────────────────────────────────────────────────
+# ── MongoDB helpers
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from db import (
@@ -81,9 +66,7 @@ def _audio_suffix(audio_file) -> str:
     return ".webm"
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 #  VOICE INTRO ENDPOINT
-# ══════════════════════════════════════════════════════════════════════════════
 
 @app.route("/voice-intro", methods=["POST"])
 def voice_intro():
@@ -139,7 +122,7 @@ def voice_intro():
         sess["voice_fusion"]   = result.get("voice_fusion_for_ml", {})
         sess["voice_dominant"] = result.get("dominant_emotion", "neutral")
 
-        # ── MongoDB: save session + biomarkers ────────────────────────────
+        # ── MongoDB: save session + biomarkers
         try:
             save_session(
                 session_id,
@@ -155,7 +138,6 @@ def voice_intro():
             print(f"[voice-intro] ✅ MongoDB saved session + biomarkers", flush=True)
         except Exception as db_exc:
             print(f"[voice-intro] ⚠️  MongoDB save failed: {db_exc}", flush=True)
-        # ─────────────────────────────────────────────────────────────────
 
         print(
             f"[voice-intro] Stored → "
@@ -176,9 +158,7 @@ def voice_intro():
             os.remove(audio_path)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 #  TTS HELPERS
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _synthesize(text: str, voice: str) -> bytes:
     async def _run():
@@ -210,9 +190,7 @@ def get_voice(lang: str) -> str:
     return VOICE_UR if lang == "ur" else VOICE_EN
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 #  UI STRINGS
-# ══════════════════════════════════════════════════════════════════════════════
 
 _UI = {
     "en": {
@@ -263,9 +241,7 @@ def ui(key: str, lang: str, **kw) -> str:
     return s.format(**kw) if kw else s
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 #  SCREENING QUESTIONS
-# ══════════════════════════════════════════════════════════════════════════════
 
 _SCREENING_QS = [
     {"id": "feeling_nervous",
@@ -375,9 +351,7 @@ def _resolve_feature(q: dict, lang: str) -> dict:
     return {"question": text, "options": None}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 #  INPUT VALIDATION
-# ══════════════════════════════════════════════════════════════════════════════
 
 _UR_MAP = {
     "ہاں": "Yes", "نہیں": "No", "نہيں": "No",
@@ -441,9 +415,7 @@ def validate_feature_input(raw: str, q: dict, lang: str):
     return True, val, None
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 #  LEVEL MAPPING
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _map_level(prediction, condition: str) -> str:
     try:
@@ -468,18 +440,14 @@ def _map_level(prediction, condition: str) -> str:
     return "medium"
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 #  LEVEL LOOKUP DICTS
-# ══════════════════════════════════════════════════════════════════════════════
 
 _LEVEL_ORDER  = {"low": 0, "medium": 1, "high": 2}
 _LEVEL_NAME   = {0: "low", 1: "medium", 2: "high"}
 _LEVEL_TO_INT = {"low": 0, "medium": 1, "high": 2}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 #  CONDITION LABEL HELPER
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _condition_label(condition: str, lang: str) -> str:
     key_map = {
@@ -490,9 +458,7 @@ def _condition_label(condition: str, lang: str) -> str:
     return ui(key_map.get(condition, "condition_anxiety"), lang)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 #  CBT RESPONSE BUILDER
-# ══════════════════════════════════════════════════════════════════════════════
 
 def build_cbt_message(
     condition:      str,
@@ -551,9 +517,7 @@ def build_cbt_message(
     )
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 #  TTS ENDPOINT
-# ══════════════════════════════════════════════════════════════════════════════
 
 @app.route("/tts", methods=["GET", "POST"])
 def tts():
@@ -589,9 +553,7 @@ def tts():
         return jsonify({"error": str(exc)}), 500
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 #  CHAT ENDPOINT
-# ══════════════════════════════════════════════════════════════════════════════
 
 @app.route("/chat", methods=["POST"])
 def chat():
@@ -633,7 +595,7 @@ def chat():
         flush=True,
     )
 
-    # ── GREETING ──────────────────────────────────────────────────────────────
+    # ── GREETING 
     if sess["stage"] == "greeting":
         sess["stage"] = "pre_screening"
         msg = ui("greeting", lang)
@@ -643,7 +605,7 @@ def chat():
             print(f"[chat/greeting] ⚠️  MongoDB save failed: {db_exc}", flush=True)
         return jsonify({"message": msg, "stage": "pre_screening"})
 
-    # ── PRE-SCREENING ─────────────────────────────────────────────────────────
+    # ── PRE-SCREENING 
     if sess["stage"] == "pre_screening":
         sess["stage"]           = "screening"
         sess["screening_index"] = 0
@@ -654,7 +616,7 @@ def chat():
             print(f"[chat/pre_screening] ⚠️  MongoDB save failed: {db_exc}", flush=True)
         return jsonify({"message": q["question"], "options": q["options"]})
 
-    # ── SCREENING ─────────────────────────────────────────────────────────────
+    # ── SCREENING 
     if sess["stage"] == "screening":
         idx = sess["screening_index"]
         try:
@@ -709,7 +671,7 @@ def chat():
             print(f"[chat/screening] ⚠️  MongoDB save failed: {db_exc}", flush=True)
         return jsonify({"message": msg, "stage": "thankyou"})
 
-    # ── THANKYOU → first feature question ────────────────────────────────────
+    # ── THANKYOU → first feature question 
     if sess["stage"] == "thankyou":
         sess["stage"]         = "features"
         sess["feature_index"] = 0
@@ -725,7 +687,7 @@ def chat():
             payload["options"] = info["options"]
         return jsonify(payload)
 
-    # ── FEATURE QUESTIONS ─────────────────────────────────────────────────────
+    # ── FEATURE QUESTIONS 
     if sess["stage"] == "features":
         condition = sess["condition"]
         questions = _feature_qs(condition)
@@ -775,18 +737,14 @@ def chat():
                 payload["options"] = info["options"]
             return jsonify(payload)
 
-        # ══════════════════════════════════════════════════════════════════════
         # ALL FEATURE QUESTIONS ANSWERED — begin fusion + prediction pipeline
-        # ══════════════════════════════════════════════════════════════════════
         sess["stage"] = "done"
         level         = "medium"
         prediction    = None
         features      = dict(sess["feature_answers"])
         combined      = {}
 
-        # ══════════════════════════════════════════════════════════════════════
         # STAGE A — ML PREDICTION
-        # ══════════════════════════════════════════════════════════════════════
         try:
             print(
                 f"[chat/stageA] Running ML for condition='{condition}'  "
@@ -823,9 +781,7 @@ def chat():
                 print(f"[chat/stageA] ⚠️  Level mapping error: {exc}", flush=True)
                 level = _map_level(prediction, condition)
 
-        # ══════════════════════════════════════════════════════════════════════
         # STAGE B — VOICE + TEXT FUSION
-        # ══════════════════════════════════════════════════════════════════════
         try:
             if prediction is not None:
                 try:
@@ -871,9 +827,7 @@ def chat():
             )
             _tb.print_exc()
 
-        # ══════════════════════════════════════════════════════════════════════
         # STAGE C — CBT TEMPLATE SELECTION
-        # ══════════════════════════════════════════════════════════════════════
         try:
             cbt_text = build_cbt_message(
                 condition,
@@ -887,7 +841,7 @@ def chat():
             _tb.print_exc()
             cbt_text = ui("fallback", lang)
 
-        # ── MongoDB: save prediction + final CBT message ──────────────────
+        # ── MongoDB: save prediction + final CBT message
         try:
             screening_scores = engine.calculate_screening_scores(sess["screening_answers"])
             save_prediction(
@@ -903,7 +857,6 @@ def chat():
             print(f"[chat/result] ✅ MongoDB saved prediction + CBT message", flush=True)
         except Exception as db_exc:
             print(f"[chat/result] ⚠️  MongoDB save failed: {db_exc}", flush=True)
-        # ─────────────────────────────────────────────────────────────────
 
         return jsonify({
             "message":        cbt_text,
@@ -915,9 +868,7 @@ def chat():
     return jsonify({"message": ui("session_done", lang)})
 
 
-# ══════════════════════════════════════════════════════════════════════════════
 #  UTILITY ENDPOINTS
-# ══════════════════════════════════════════════════════════════════════════════
 
 @app.route("/screening", methods=["POST"])
 def screening_route():
@@ -1015,7 +966,7 @@ def feedback_route():
     _feedback_log.append(entry)
     print(f"[FEEDBACK] {entry}", flush=True)
 
-    # ── MongoDB: save feedback ────────────────────────────────────────────
+    # ── MongoDB: save feedback 
     try:
         save_feedback(
             session_id    = entry["session_id"],
@@ -1026,7 +977,6 @@ def feedback_route():
         print(f"[feedback] ✅ MongoDB saved feedback", flush=True)
     except Exception as db_exc:
         print(f"[feedback] ⚠️  MongoDB save failed: {db_exc}", flush=True)
-    # ─────────────────────────────────────────────────────────────────────
 
     total      = len(_feedback_log)
     positives  = sum(1 for e in _feedback_log if e["type"] == "up")
