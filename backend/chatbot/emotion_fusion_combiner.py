@@ -7,7 +7,7 @@ from typing import Any
 
 #  CONSTANTS
 
-# How voice_fusion scores map to a 0/1/2 severity level.
+# Converts a voice score into a severity level.
 # These thresholds were tuned to match the ML model's output distribution.
 _VOICE_LEVEL_THRESHOLDS = {
     "low":    (0.00, 0.35),   # [0.00, 0.35)
@@ -15,7 +15,7 @@ _VOICE_LEVEL_THRESHOLDS = {
     "high":   (0.65, 1.01),   # [0.65, 1.00]
 }
 
-_LEVEL_TO_INT = {"low": 0, "medium": 1, "high": 2}
+_LEVEL_TO_INT = {"low": 0, "medium": 1, "high": 2}         #Used for mathematical blending
 _INT_TO_LEVEL = {0: "low",  1: "medium", 2: "high"}
 
 # Which voice_fusion key to read for each text-predicted condition.
@@ -45,6 +45,7 @@ _DOMINANT_TO_CONDITION: dict[str, str] = {
 
 # Minimum voice signal to consider the voice channel reliable.
 # Below this the voice signal is so weak it is treated as noise.
+# defines how much stronger voice must be to override text.
 _VOICE_RELIABILITY_THRESHOLD = 0.20
 
 # Minimum gap between two conditions' voice scores to call a clear voice winner.
